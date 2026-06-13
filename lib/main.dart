@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -49,6 +53,9 @@ class PrayerStorage {
   }
 }
 
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
 void main() {
   runApp(const NurlifyApp());
 }
@@ -62,27 +69,27 @@ class NurlifyApp extends StatelessWidget {
       title: 'Nurlify',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: const ColorScheme(
+        colorScheme: ColorScheme(
           brightness: Brightness.light,
           primary: Color(0xFF7D8B6F),
           onPrimary: Colors.white,
-          secondary: Color(0xFF8C8C8C),
+          secondary: Color(0xFFFAF7F2).withOpacity(0.55),
           onSecondary: Colors.white,
-          surface: Color(0xFFF0EBE3),
-          onSurface: Color(0xFF2C2C2C),
+          surface: Colors.white.withOpacity(0.09),
+          onSurface: Color(0xFFFAF7F2),
           error: Color(0xFFB8554E),
           onError: Colors.white,
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F2EA),
-        textTheme: const TextTheme(
-          headlineLarge: TextStyle(
+        textTheme: TextTheme(
+          headlineLarge: GoogleFonts.spaceMono(
             fontSize: 28,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2C2C2C),
+            color: const Color(0xFFFAF7F2),
             letterSpacing: -0.5,
           ),
-          bodyLarge: TextStyle(fontSize: 16, color: Color(0xFF2C2C2C)),
-          bodyMedium: TextStyle(fontSize: 14, color: Color(0xFF8C8C8C)),
+          bodyLarge: GoogleFonts.spaceMono(fontSize: 16, color: const Color(0xFFFAF7F2)),
+          bodyMedium: GoogleFonts.spaceMono(fontSize: 14, color: const Color(0xFFFAF7F2).withOpacity(0.55)),
         ),
       ),
       home: const MainShell(),
@@ -105,15 +112,32 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F2EA),
-      body: IndexedStack(
-        index: _tab,
-        children: const [
-          PrayerTimesScreen(),
-          _PlaceholderScreen('Community'),
-          _PlaceholderScreen('Learn'),
-          _PlaceholderScreen('Profile'),
-        ],
+      backgroundColor: Colors.transparent,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF3D4F3D),
+              Color(0xFF5C7057),
+              Color(0xFF8AAF82),
+              Color(0xFFB8CEAF),
+            ],
+            stops: [0.0, 0.35, 0.65, 1.0],
+          ),
+        ),
+        child: IndexedStack(
+          index: _tab,
+          children: const [
+            PrayerTimesScreen(),
+            _PlaceholderScreen('Community'),
+            _PlaceholderScreen('Learn'),
+            _PlaceholderScreen('Profile'),
+          ],
+        ),
       ),
       bottomNavigationBar: _BottomNav(
         selected: _tab,
@@ -130,8 +154,8 @@ class _PlaceholderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Text(
-          '$label — Coming Soon',
-          style: const TextStyle(color: Color(0xFF8C8C8C), fontSize: 16),
+          '$label — Coming Soon'.toUpperCase(),
+          style: GoogleFonts.spaceMono(color: const Color(0xFFFAF7F2).withOpacity(0.55), fontSize: 16),
         ),
       );
 }
@@ -142,75 +166,94 @@ class _BottomNav extends StatelessWidget {
 
   const _BottomNav({required this.selected, required this.onSelect});
 
-  static const _items = [
-    (Icons.access_time_rounded, 'Prayer'),
-    (Icons.people_outline_rounded, 'Community'),
-    (Icons.menu_book_outlined, 'Learn'),
-    (Icons.person_outline_rounded, 'Profile'),
+  static const _labels = ['PRAYER', 'COMMUNITY', 'LEARN', 'PROFILE'];
+  static const _icons = [
+    Icons.access_time_outlined,
+    Icons.people_outline,
+    Icons.menu_book_outlined,
+    Icons.person_outline,
   ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF7F2EA),
-        border: Border(
-          top: BorderSide(color: Color(0x0F2C2C2C), width: 1),
-        ),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 58,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_items.length, (i) {
-              final (icon, label) = _items[i];
-              final active = i == selected;
-              return GestureDetector(
-                onTap: () => onSelect(i),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-                  decoration: BoxDecoration(
+      height: 64,
+      color: const Color(0xFF1E2A1E),
+      child: Row(
+        children: List.generate(_labels.length, (i) {
+          final active = i == selected;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onSelect(i),
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (active)
+                    Container(
+                      width: 24,
+                      height: 2,
+                      margin: const EdgeInsets.only(bottom: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8AAF82),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  Icon(
+                    _icons[i],
+                    size: 18,
                     color: active
-                        ? const Color(0xFF7D8B6F).withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
+                        ? const Color(0xFF8AAF82)
+                        : Color(0xFFFAF7F2).withOpacity(0.4),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        icon,
-                        size: 22,
-                        color: active
-                            ? const Color(0xFF7D8B6F)
-                            : const Color(0xFF8C8C8C),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w400,
-                          color: active
-                              ? const Color(0xFF7D8B6F)
-                              : const Color(0xFF8C8C8C),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _labels[i],
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 8,
+                      fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                      color: active
+                          ? const Color(0xFF8AAF82)
+                          : Color(0xFFFAF7F2).withOpacity(0.4),
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-              );
-            }),
-          ),
-        ),
+                ],
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
+}
+
+// ─── Notification Settings Model ─────────────────────────────────────────────
+
+enum NotificationMode { silent, notification, adhan }
+
+class PrayerNotificationSettings {
+  final String prayerName;
+  NotificationMode mode;
+
+  PrayerNotificationSettings({
+    required this.prayerName,
+    this.mode = NotificationMode.adhan,
+  });
+}
+
+Future<void> _saveNotificationSetting(String prayer, NotificationMode mode) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('notif_$prayer', mode.name);
+}
+
+Future<NotificationMode> _loadNotificationSetting(String prayer) async {
+  final prefs = await SharedPreferences.getInstance();
+  final value = prefs.getString('notif_$prayer') ?? 'adhan';
+  return NotificationMode.values.firstWhere(
+    (e) => e.name == value,
+    orElse: () => NotificationMode.adhan,
+  );
 }
 
 // ─── Prayer Times Screen ──────────────────────────────────────────────────────
@@ -231,6 +274,8 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   String? _city;
   String? _country;
   String? _hijriDate;
+  String _currentTimezone = 'UTC';
+  final Map<String, NotificationMode> _notificationSettings = {};
 
   late final AnimationController _fadeController;
   Timer? _clockTimer;
@@ -257,6 +302,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   @override
   void initState() {
     super.initState();
+    tz_data.initializeTimeZones();
     WidgetsBinding.instance.addObserver(this);
     _fadeController = AnimationController(
       vsync: this,
@@ -265,7 +311,20 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
+    _initNotifications();
     _fetchLocationAndPrayerTimes();
+  }
+
+  Future<void> _initNotifications() async {
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initSettings =
+        InitializationSettings(android: androidSettings);
+    await flutterLocalNotificationsPlugin.initialize(initSettings);
+    for (final prayer in _obligatory) {
+      final mode = await _loadNotificationSetting(prayer);
+      if (mounted) setState(() => _notificationSettings[prayer] = mode);
+    }
   }
 
   @override
@@ -326,6 +385,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
 
       _lastLat = lat;
       _lastLng = lng;
+      _yesterdayPrayerTimes = {};
       if (responses[0].statusCode == 200) {
         final data = json.decode(responses[0].body);
         String city = 'Your Location';
@@ -373,6 +433,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     final hijriDay = hijri['day'];
     final hijriMonth = hijri['month']['en'];
     final hijriYear = hijri['year'];
+    final timezone = (data['data']['meta']['timezone'] as String?)?.trim() ?? 'UTC';
 
     setState(() {
       _prayerTimes = {
@@ -382,11 +443,22 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
       _country = country;
       _hijriDate = '$hijriDay $hijriMonth $hijriYear AH';
       _completed = {for (final p in _prayerNames) p: false};
+      _currentTimezone = timezone;
       _loading = false;
       _error = null;
     });
     _fadeController.forward(from: 0);
     _loadTodayCompletions();
+    _rescheduleAllNotifications();
+  }
+
+  DateTime _cityNow() {
+    try {
+      final location = tz.getLocation(_currentTimezone);
+      return tz.TZDateTime.now(location);
+    } catch (_) {
+      return DateTime.now();
+    }
   }
 
   Future<void> _loadTodayCompletions() async {
@@ -410,16 +482,31 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
       barrierDismissible: false,
       builder: (_) => const CitySearchDialog(),
     ).then((result) {
+      if (!mounted) return;
       if (result == 'use_gps') {
-        setState(() => _loading = true);
+        setState(() {
+          _loading = true;
+          _prayerTimes = {};
+          _yesterdayPrayerTimes = {};
+        });
         _fetchLocationAndPrayerTimes();
       } else if (result is Map<String, String>) {
-        setState(() => _loading = true);
+        setState(() {
+          _loading = true;
+          _prayerTimes = {};
+          _yesterdayPrayerTimes = {};
+          _lastLat = null;
+          _lastLng = null;
+        });
         if (result.containsKey('address')) {
           _fetchByAddress(result['address']!);
         } else {
           _fetchByCity(result['city']!, result['country']!);
         }
+      } else if (_prayerTimes.isEmpty) {
+        // dialog dismissed with no selection and no times loaded yet
+        setState(() => _error = 'Location required. Pull to retry.');
+        _loading = false;
       }
     });
   }
@@ -526,7 +613,8 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
 
   String? _activePrayer() {
     if (_prayerTimes.isEmpty) return null;
-    final nowMin = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
+    final now = _cityNow();
+    final nowMin = now.hour * 60 + now.minute;
     String? active;
     for (final p in _prayerNames) {
       if (!_obligatory.contains(p)) continue;
@@ -541,7 +629,8 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   // Returns next upcoming obligatory prayer and minutes until it
   ({String name, int minutes})? _nextPrayer() {
     if (_prayerTimes.isEmpty) return null;
-    final nowMin = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
+    final now = _cityNow();
+    final nowMin = now.hour * 60 + now.minute;
     for (final p in _prayerNames) {
       if (!_obligatory.contains(p)) continue;
       final pMin = _prayerMinutes(p);
@@ -556,6 +645,68 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     return null;
   }
 
+  ({int hour, int minute})? _getPrayerTime(String prayer) {
+    final t = _prayerTimes[prayer];
+    if (t == null) return null;
+    final parts = t.split(':');
+    if (parts.length < 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    return (hour: hour, minute: minute);
+  }
+
+  int _prayerNotifId(String prayer) {
+    const ids = {'Fajr': 1, 'Dhuhr': 2, 'Asr': 3, 'Maghrib': 4, 'Isha': 5};
+    return ids[prayer] ?? 0;
+  }
+
+  Future<void> _rescheduleNotification(String prayer) async {
+    final mode = _notificationSettings[prayer] ?? NotificationMode.adhan;
+    if (mode == NotificationMode.silent) {
+      await flutterLocalNotificationsPlugin.cancel(_prayerNotifId(prayer));
+      return;
+    }
+    final time = _getPrayerTime(prayer);
+    if (time == null) return;
+    try {
+      final location = tz.getLocation(_currentTimezone);
+      final now = tz.TZDateTime.now(location);
+      var scheduled = tz.TZDateTime(
+          location, now.year, now.month, now.day, time.hour, time.minute);
+      if (scheduled.isBefore(now)) scheduled = scheduled.add(const Duration(days: 1));
+      final androidDetails = AndroidNotificationDetails(
+        mode == NotificationMode.adhan ? 'adhan_channel' : 'prayer_channel',
+        mode == NotificationMode.adhan ? 'Adhan' : 'Prayer Notifications',
+        channelDescription: 'Nurlify prayer notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+        sound: mode == NotificationMode.adhan
+            ? const RawResourceAndroidNotificationSound('adhan')
+            : null,
+        enableVibration: true,
+        playSound: true,
+      );
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        _prayerNotifId(prayer),
+        "IT'S TIME FOR ${prayer.toUpperCase()}",
+        'A MOMENT TO RECONNECT',
+        scheduled,
+        NotificationDetails(android: androidDetails),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _rescheduleAllNotifications() async {
+    for (final prayer in _obligatory) {
+      await _rescheduleNotification(prayer);
+    }
+  }
+
   String _formatCountdown(int minutes) {
     if (minutes < 60) return '${minutes}m';
     final h = minutes ~/ 60;
@@ -564,7 +715,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   }
 
   String _formatCurrentTime() {
-    final t = TimeOfDay.now();
+    final t = _cityNow();
     final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
     final min = t.minute.toString().padLeft(2, '0');
     final period = t.hour < 12 ? 'AM' : 'PM';
@@ -582,7 +733,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F2EA),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: _loading
             ? const Center(
@@ -605,17 +756,17 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!,
-                style: const TextStyle(
-                    color: Color(0xFF2C2C2C), fontSize: 16)),
+            Text(_error!.toUpperCase(),
+                style: GoogleFonts.spaceMono(
+                    color: const Color(0xFFFAF7F2), fontSize: 16)),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () {
                 setState(() { _loading = true; _error = null; });
                 _fetchLocationAndPrayerTimes();
               },
-              child: const Text('Retry',
-                  style: TextStyle(color: Color(0xFF7D8B6F))),
+              child: Text('Retry'.toUpperCase(),
+                  style: GoogleFonts.spaceMono(color: const Color(0xFF7D8B6F))),
             ),
           ],
         ),
@@ -690,12 +841,12 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
               _buildAnimatedCard(i, _prayerNames[i]),
           if (viewTimes.isNotEmpty && !viewCompleted.values.any((v) => v)) ...[
             const SizedBox(height: 20),
-            const Center(
+            Center(
               child: Text(
-                'Tap a prayer to mark it complete',
-                style: TextStyle(
+                'Tap a prayer to mark it complete'.toUpperCase(),
+                style: GoogleFonts.spaceMono(
                   fontSize: 12,
-                  color: Color(0xFF8C8C8C),
+                  color: const Color(0xFFFAF7F2).withOpacity(0.55),
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -706,18 +857,18 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
             _buildQiblaButton(context),
             const SizedBox(height: 28),
             Divider(
-                color: const Color(0xFF2C2C2C).withValues(alpha: 0.07),
+                color: const Color(0xFFFAF7F2).withValues(alpha: 0.07),
                 thickness: 1),
             const SizedBox(height: 24),
-            const SizedBox(
+            SizedBox(
               width: double.infinity,
               child: Text(
-                'Prayer Tracker',
+                'Prayer Tracker'.toUpperCase(),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: GoogleFonts.spaceMono(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF2C2C2C),
+                  color: const Color(0xFFFAF7F2),
                   letterSpacing: -0.3,
                 ),
               ),
@@ -732,7 +883,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   }
 
   Widget _buildHeader() {
-    final now = DateTime.now();
+    final now = _cityNow();
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
@@ -776,34 +927,31 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      dateStr,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A1A),
-                        letterSpacing: -0.5,
-                        height: 1.0,
+                      dateStr.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFFAF7F2),
                       ),
                     ),
                     if (_isViewingYesterday) ...[
                       const SizedBox(height: 2),
-                      const Text(
-                        'Yesterday',
-                        style: TextStyle(
+                      Text(
+                        'Yesterday'.toUpperCase(),
+                        style: GoogleFonts.spaceMono(
                           fontSize: 12,
-                          color: Color(0xFF8C8C8C),
+                          color: const Color(0xFFFAF7F2).withOpacity(0.55),
                           fontWeight: FontWeight.w400,
                         ),
                       ),
                     ] else if (_hijriDate != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        _hijriDate!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF7D8B6F),
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.1,
+                        _hijriDate!.toUpperCase(),
+                        style: GoogleFonts.spaceMono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFFFAF7F2).withOpacity(0.55),
                         ),
                       ),
                     ],
@@ -816,19 +964,18 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.location_on_rounded, size: 13, color: Color(0xFF7D8B6F)),
+                    Icon(Icons.location_on_rounded, size: 13, color: Color(0xFFFAF7F2).withOpacity(0.55)),
                     const SizedBox(width: 3),
                     Text(
-                      locStr ?? 'Set location',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF7D8B6F),
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.1,
+                      (locStr ?? 'Set location').toUpperCase(),
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFFFAF7F2).withOpacity(0.55),
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.edit_rounded, size: 11, color: Color(0xFF7D8B6F)),
+                    Icon(Icons.edit_rounded, size: 11, color: Color(0xFFFAF7F2).withOpacity(0.55)),
                   ],
                 ),
               ),
@@ -841,34 +988,32 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                _formatCurrentTime(),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1A1A),
-                  letterSpacing: -0.8,
-                  height: 1.0,
+                _formatCurrentTime().toUpperCase(),
+                style: GoogleFonts.spaceMono(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFFAF7F2),
                 ),
               ),
               if (next != null) ...[
                 const SizedBox(height: 3),
                 Text(
-                  '${next.name} in ${_formatCountdown(next.minutes)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF7D8B6F),
-                    fontWeight: FontWeight.w500,
+                  '${next.name} in ${_formatCountdown(next.minutes)}'.toUpperCase(),
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF8AAF82),
                   ),
                 ),
               ],
               if (timeSince != null) ...[
                 const SizedBox(height: 2),
                 Text(
-                  timeSince,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF8C8C8C),
+                  timeSince.toUpperCase(),
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 10,
                     fontWeight: FontWeight.w400,
+                    color: Color(0xFFFAF7F2).withOpacity(0.55),
                   ),
                 ),
               ],
@@ -926,6 +1071,139 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     );
   }
 
+  Widget _buildBellIcon(String prayerName) {
+    final mode = _notificationSettings[prayerName] ?? NotificationMode.adhan;
+    final IconData icon;
+    final Color color;
+    switch (mode) {
+      case NotificationMode.silent:
+        icon = Icons.notifications_off_outlined;
+        color = Color(0xFFFAF7F2).withOpacity(0.3);
+        break;
+      case NotificationMode.notification:
+        icon = Icons.notifications_outlined;
+        color = Color(0xFFFAF7F2).withOpacity(0.7);
+        break;
+      case NotificationMode.adhan:
+        icon = Icons.notifications_active_outlined;
+        color = const Color(0xFF8AAF82);
+        break;
+    }
+    return GestureDetector(
+      onTap: () => _showNotificationBottomSheet(prayerName),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Icon(icon, size: 18, color: color),
+      ),
+    );
+  }
+
+  void _showNotificationBottomSheet(String prayerName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E2A1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '$prayerName NOTIFICATION'.toUpperCase(),
+                style: GoogleFonts.spaceMono(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFFAF7F2),
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildNotifOption(prayerName, NotificationMode.silent,
+                  Icons.notifications_off_outlined, 'SILENT', 'NO NOTIFICATION', setSheetState),
+              const SizedBox(height: 12),
+              _buildNotifOption(prayerName, NotificationMode.notification,
+                  Icons.notifications_outlined, 'NOTIFICATION', 'DEFAULT PHONE SOUND', setSheetState),
+              const SizedBox(height: 12),
+              _buildNotifOption(prayerName, NotificationMode.adhan,
+                  Icons.notifications_active_outlined, 'ADHAN', 'TRADITIONAL CALL TO PRAYER', setSheetState),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotifOption(String prayer, NotificationMode mode, IconData icon,
+      String title, String subtitle, StateSetter setSheetState) {
+    final isSelected = (_notificationSettings[prayer] ?? NotificationMode.adhan) == mode;
+    return GestureDetector(
+      onTap: () async {
+        await _saveNotificationSetting(prayer, mode);
+        setState(() => _notificationSettings[prayer] = mode);
+        setSheetState(() {});
+        await _rescheduleNotification(prayer);
+        if (mounted) Navigator.pop(context);
+        HapticFeedback.lightImpact();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: isSelected
+              ? Color(0xFF8AAF82).withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          border: Border.all(
+            color: isSelected
+                ? Color(0xFF8AAF82).withOpacity(0.5)
+                : Colors.white.withOpacity(0.1),
+            width: 0.6,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 20,
+                color: isSelected
+                    ? const Color(0xFF8AAF82)
+                    : Color(0xFFFAF7F2).withOpacity(0.5)),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.spaceMono(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? const Color(0xFF8AAF82)
+                            : const Color(0xFFFAF7F2))),
+                Text(subtitle,
+                    style: GoogleFonts.spaceMono(
+                        fontSize: 9,
+                        color: Color(0xFFFAF7F2).withOpacity(0.5))),
+              ],
+            ),
+            const Spacer(),
+            if (isSelected) const Icon(Icons.check, size: 16, color: Color(0xFF8AAF82)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCard(String prayer) {
     final times = _isViewingYesterday ? _yesterdayPrayerTimes : _prayerTimes;
     final comp = _isViewingYesterday ? _yesterdayCompleted : _completed;
@@ -941,6 +1219,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
         prayer: prayer,
         time: time,
         isCompleted: isCompleted,
+        bellIcon: _buildBellIcon(prayer),
         onTap: () => _toggleCompletion(prayer),
       );
     }
@@ -954,6 +1233,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
       time: time,
       isCompleted: isCompleted,
       isPast: isPast,
+      bellIcon: _buildBellIcon(prayer),
       onTap: () => _toggleCompletion(prayer),
     );
   }
@@ -965,12 +1245,14 @@ class _ActiveCard extends StatelessWidget {
   final String prayer;
   final String time;
   final bool isCompleted;
+  final Widget bellIcon;
   final VoidCallback onTap;
 
   const _ActiveCard({
     required this.prayer,
     required this.time,
     required this.isCompleted,
+    required this.bellIcon,
     required this.onTap,
   });
 
@@ -983,11 +1265,7 @@ class _ActiveCard extends StatelessWidget {
         padding:
             const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7D8B6F), Color(0xFF5C6B54)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: Color(0xFF1E2A1E).withOpacity(0.92),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -1001,40 +1279,48 @@ class _ActiveCard extends StatelessWidget {
               blurRadius: 70,
               offset: const Offset(0, 24),
             ),
+            BoxShadow(
+              color: Color(0xFF0A0F0A).withOpacity(0.5),
+              blurRadius: 24,
+              spreadRadius: 2,
+              offset: Offset(0, 8),
+            ),
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'NOW',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.white.withValues(alpha: 0.65),
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+            bellIcon,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'NOW'.toUpperCase(),
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 10,
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  prayer,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    letterSpacing: -0.4,
+                  const SizedBox(height: 6),
+                  Text(
+                    prayer.toUpperCase(),
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: -0.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             Row(
               children: [
                 Text(
-                  time,
-                  style: const TextStyle(
+                  time.toUpperCase(),
+                  style: GoogleFonts.spaceMono(
                     fontSize: 22,
                     fontWeight: FontWeight.w500,
                     color: Colors.white,
@@ -1094,24 +1380,24 @@ class _SunriseRow extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.wb_sunny_outlined, size: 13,
-                  color: const Color(0xFF8C8C8C).withValues(alpha: 0.6)),
+                  color: const Color(0xFFFAF7F2).withOpacity(0.55).withValues(alpha: 0.6)),
               const SizedBox(width: 6),
               Text(
-                'Sunrise',
-                style: TextStyle(
+                'Sunrise'.toUpperCase(),
+                style: GoogleFonts.spaceMono(
                   fontSize: 14,
                   fontStyle: FontStyle.italic,
-                  color: const Color(0xFF8C8C8C).withValues(alpha: 0.7),
+                  color: const Color(0xFFFAF7F2).withOpacity(0.55).withValues(alpha: 0.7),
                   fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
           Text(
-            time,
-            style: TextStyle(
+            time.toUpperCase(),
+            style: GoogleFonts.spaceMono(
               fontSize: 14,
-              color: const Color(0xFF8C8C8C).withValues(alpha: 0.7),
+              color: const Color(0xFFFAF7F2).withOpacity(0.55).withValues(alpha: 0.7),
               letterSpacing: -0.2,
             ),
           ),
@@ -1128,6 +1414,7 @@ class _StandardCard extends StatelessWidget {
   final String time;
   final bool isCompleted;
   final bool isPast;
+  final Widget bellIcon;
   final VoidCallback? onTap;
 
   const _StandardCard({
@@ -1135,6 +1422,7 @@ class _StandardCard extends StatelessWidget {
     required this.time,
     required this.isCompleted,
     required this.isPast,
+    required this.bellIcon,
     this.onTap,
   });
 
@@ -1146,7 +1434,7 @@ class _StandardCard extends StatelessWidget {
       child: Material(
         color: isCompleted
             ? const Color(0xFF7D8B6F).withValues(alpha: 0.13)
-            : const Color(0xFFF0EBE3),
+            : Colors.white.withOpacity(0.09),
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -1157,32 +1445,35 @@ class _StandardCard extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  prayer,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                    color: isCompleted
-                        ? const Color(0xFF7D8B6F)
-                        : const Color(0xFF2C2C2C),
-                    decoration: isCompleted
-                        ? TextDecoration.lineThrough
-                        : null,
-                    decorationColor: const Color(0xFF7D8B6F),
+                bellIcon,
+                Expanded(
+                  child: Text(
+                    prayer.toUpperCase(),
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                      color: isCompleted
+                          ? const Color(0xFF7D8B6F)
+                          : const Color(0xFFFAF7F2),
+                      decoration: isCompleted
+                          ? TextDecoration.lineThrough
+                          : null,
+                      decorationColor: const Color(0xFF7D8B6F),
+                    ),
+                    textAlign: TextAlign.left,
                   ),
                 ),
                 Row(
                   children: [
                     Text(
-                      time,
-                      style: TextStyle(
+                      time.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
                         fontSize: 17,
                         fontWeight: FontWeight.w400,
                         color: isPast
-                            ? const Color(0xFF8C8C8C)
-                            : const Color(0xFF2C2C2C),
+                            ? const Color(0xFFFAF7F2).withOpacity(0.55)
+                            : const Color(0xFFFAF7F2),
                         letterSpacing: -0.3,
                       ),
                     ),
@@ -1211,7 +1502,7 @@ class _StandardCard extends StatelessWidget {
                             : Icon(
                                 key: const ValueKey(false),
                                 Icons.circle_outlined,
-                                color: const Color(0xFF8C8C8C)
+                                color: const Color(0xFFFAF7F2).withOpacity(0.55)
                                     .withValues(alpha: 0.35),
                                 size: 24,
                               ),
@@ -1302,20 +1593,20 @@ class PrayerTrackerState extends State<PrayerTracker> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          _showMonth
+          (_showMonth
               ? '${_monthNames[_monthStart.month - 1]} ${_monthStart.year}'
-              : 'This Week',
-          style: const TextStyle(
+              : 'This Week').toUpperCase(),
+          style: GoogleFonts.spaceMono(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2C2C2C),
+            color: const Color(0xFFFAF7F2),
             letterSpacing: -0.2,
           ),
         ),
         Container(
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: const Color(0xFFF0EBE3),
+            color: Colors.white.withOpacity(0.09),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -1347,11 +1638,11 @@ class PrayerTrackerState extends State<PrayerTracker> {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
-          label,
-          style: TextStyle(
+          label.toUpperCase(),
+          style: GoogleFonts.spaceMono(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: active ? Colors.white : const Color(0xFF8C8C8C),
+            color: active ? Colors.white : const Color(0xFFFAF7F2).withOpacity(0.55),
           ),
         ),
       ),
@@ -1381,7 +1672,7 @@ class PrayerTrackerState extends State<PrayerTracker> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
         decoration: BoxDecoration(
-          color: const Color(0xFFF0EBE3),
+          color: Colors.white.withOpacity(0.09),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -1391,13 +1682,13 @@ class PrayerTrackerState extends State<PrayerTracker> {
               children: [
                 GestureDetector(
                   onTap: () { setState(() => _weekOffset--); _load(); },
-                  child: const Icon(Icons.chevron_left_rounded, size: 20, color: Color(0xFF8C8C8C)),
+                  child: Icon(Icons.chevron_left_rounded, size: 20, color: Color(0xFFFAF7F2).withOpacity(0.55)),
                 ),
-                Text(rangeLabel,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF8C8C8C))),
+                Text(rangeLabel.toUpperCase(),
+                    style: GoogleFonts.spaceMono(fontSize: 12, color: const Color(0xFFFAF7F2).withOpacity(0.55))),
                 GestureDetector(
                   onTap: () { setState(() => _weekOffset++); _load(); },
-                  child: const Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF8C8C8C)),
+                  child: Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFFFAF7F2).withOpacity(0.55)),
                 ),
               ],
             ),
@@ -1443,7 +1734,7 @@ class PrayerTrackerState extends State<PrayerTracker> {
       key: const ValueKey('month'),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0EBE3),
+        color: Colors.white.withOpacity(0.09),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1456,18 +1747,18 @@ class PrayerTrackerState extends State<PrayerTracker> {
                   setState(() => _monthStart = DateTime(_monthStart.year, _monthStart.month - 1));
                   _load();
                 },
-                child: const Icon(Icons.chevron_left_rounded, size: 20, color: Color(0xFF8C8C8C)),
+                child: Icon(Icons.chevron_left_rounded, size: 20, color: Color(0xFFFAF7F2).withOpacity(0.55)),
               ),
               Text(
-                '${_monthNames[month - 1]} $year',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF8C8C8C)),
+                '${_monthNames[month - 1]} $year'.toUpperCase(),
+                style: GoogleFonts.spaceMono(fontSize: 12, color: const Color(0xFFFAF7F2).withOpacity(0.55)),
               ),
               GestureDetector(
                 onTap: () {
                   setState(() => _monthStart = DateTime(_monthStart.year, _monthStart.month + 1));
                   _load();
                 },
-                child: const Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF8C8C8C)),
+                child: Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFFFAF7F2).withOpacity(0.55)),
               ),
             ],
           ),
@@ -1475,8 +1766,8 @@ class PrayerTrackerState extends State<PrayerTracker> {
           Row(
             children: ['M','T','W','T','F','S','S'].map((d) => Expanded(
               child: Center(
-                child: Text(d, style: const TextStyle(
-                  fontSize: 10, color: Color(0xFF8C8C8C), fontWeight: FontWeight.w500)),
+                child: Text(d.toUpperCase(), style: GoogleFonts.spaceMono(
+                  fontSize: 10, color: const Color(0xFFFAF7F2).withOpacity(0.55), fontWeight: FontWeight.w500)),
               ),
             )).toList(),
           ),
@@ -1539,20 +1830,20 @@ class _DayColumn extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            label,
-            style: TextStyle(
+            label.toUpperCase(),
+            style: GoogleFonts.spaceMono(
               fontSize: 10,
               fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-              color: isToday ? const Color(0xFF7D8B6F) : const Color(0xFF8C8C8C),
+              color: isToday ? const Color(0xFF7D8B6F) : const Color(0xFFFAF7F2).withOpacity(0.55),
             ),
           ),
           const SizedBox(height: 3),
           Text(
-            '$dayNum',
-            style: TextStyle(
+            '$dayNum'.toUpperCase(),
+            style: GoogleFonts.spaceMono(
               fontSize: 11,
               fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-              color: isToday ? const Color(0xFF7D8B6F) : const Color(0xFF2C2C2C),
+              color: isToday ? const Color(0xFF7D8B6F) : const Color(0xFFFAF7F2),
             ),
           ),
           const SizedBox(height: 8),
@@ -1570,10 +1861,10 @@ class _DayColumn extends StatelessWidget {
                   border: Border.all(
                     width: 1,
                     color: isFuture
-                        ? const Color(0xFF8C8C8C).withValues(alpha: 0.12)
+                        ? const Color(0xFFFAF7F2).withOpacity(0.55).withValues(alpha: 0.12)
                         : (!isFuture && (data[p] ?? false))
                             ? const Color(0xFF7D8B6F)
-                            : const Color(0xFF8C8C8C).withValues(alpha: 0.3),
+                            : const Color(0xFFFAF7F2).withOpacity(0.55).withValues(alpha: 0.3),
                   ),
                 ),
               ),
@@ -1603,13 +1894,13 @@ class _MonthCell extends StatelessWidget {
     Color text;
     if (isFuture || count == 0) {
       fill = Colors.transparent;
-      text = const Color(0xFF2C2C2C);
+      text = const Color(0xFFFAF7F2);
     } else if (count == 1) {
       fill = const Color(0xFF7D8B6F).withValues(alpha: 0.18);
-      text = const Color(0xFF2C2C2C);
+      text = const Color(0xFFFAF7F2);
     } else if (count == 2) {
       fill = const Color(0xFF7D8B6F).withValues(alpha: 0.36);
-      text = const Color(0xFF2C2C2C);
+      text = const Color(0xFFFAF7F2);
     } else if (count == 3) {
       fill = const Color(0xFF7D8B6F).withValues(alpha: 0.55);
       text = Colors.white;
@@ -1631,8 +1922,8 @@ class _MonthCell extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          '$day',
-          style: TextStyle(fontSize: 10, fontWeight: isToday ? FontWeight.w600 : FontWeight.w400, color: text),
+          '$day'.toUpperCase(),
+          style: GoogleFonts.spaceMono(fontSize: 10, fontWeight: isToday ? FontWeight.w600 : FontWeight.w400, color: text),
         ),
       ),
     );
@@ -1904,20 +2195,36 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
     final noMatch = hasQuery && _suggestions.isEmpty;
 
     return Dialog(
-      backgroundColor: const Color(0xFFF7F2EA),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Color(0xFF1E2A1E).withOpacity(0.95),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.15),
+            width: 0.6,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF0A0F0A).withOpacity(0.4),
+              blurRadius: 24,
+              spreadRadius: 2,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(
+            Center(
               child: Text(
-                'Where are you?',
-                style: TextStyle(
-                  color: Color(0xFF2C2C2C),
+                'Where are you?'.toUpperCase(),
+                style: GoogleFonts.spaceMono(
+                  color: const Color(0xFFFAF7F2),
                   fontWeight: FontWeight.w600,
                   fontSize: 18,
                 ),
@@ -1930,21 +2237,22 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7D8B6F).withValues(alpha: 0.1),
+                  color: Colors.white.withOpacity(0.07),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF7D8B6F).withValues(alpha: 0.25),
+                    color: Colors.white.withOpacity(0.15),
+                    width: 0.6,
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.my_location_rounded, size: 16, color: Color(0xFF7D8B6F)),
-                    SizedBox(width: 8),
+                    const Icon(Icons.my_location_rounded, size: 16, color: Color(0xFF7D8B6F)),
+                    const SizedBox(width: 8),
                     Text(
-                      'Use my current location',
-                      style: TextStyle(
+                      'Use my current location'.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
                         fontSize: 14,
-                        color: Color(0xFF7D8B6F),
+                        color: const Color(0xFF7D8B6F),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1955,12 +2263,12 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
             const SizedBox(height: 14),
             // Divider
             Row(children: [
-              const Expanded(child: Divider(color: Color(0xFFD8D0C4))),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10),
-                child: Text('or search', style: TextStyle(fontSize: 12, color: Color(0xFF8C8C8C))),
+              Expanded(child: Divider(color: Colors.white.withOpacity(0.15))),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text('or search'.toUpperCase(), style: GoogleFonts.spaceMono(fontSize: 12, color: Color(0xFFFAF7F2).withOpacity(0.55))),
               ),
-              const Expanded(child: Divider(color: Color(0xFFD8D0C4))),
+              Expanded(child: Divider(color: Colors.white.withOpacity(0.15))),
             ]),
             const SizedBox(height: 14),
             // Search field
@@ -1975,17 +2283,17 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
                 }
               },
               decoration: InputDecoration(
-                hintText: 'e.g. London, New York…',
-                hintStyle: const TextStyle(color: Color(0xFFBFBFBF)),
+                hintText: 'e.g. London, New York...',
+                hintStyle: GoogleFonts.spaceMono(color: const Color(0xFFBFBFBF)),
                 filled: true,
-                fillColor: const Color(0xFFF0EBE3),
+                fillColor: Colors.white.withOpacity(0.09),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
-              style: const TextStyle(color: Color(0xFF2C2C2C)),
+              style: GoogleFonts.spaceMono(color: const Color(0xFFFAF7F2)),
             ),
             // Dropdown suggestions
             if (_suggestions.isNotEmpty) ...[
@@ -1999,7 +2307,7 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
                   itemBuilder: (ctx, i) {
                     final city = _suggestions[i];
                     return Material(
-                      color: const Color(0xFFF0EBE3),
+                      color: Colors.white.withOpacity(0.09),
                       borderRadius: BorderRadius.circular(10),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
@@ -2007,8 +2315,8 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                           child: Text(
-                            '${city['city']}, ${city['country']}',
-                            style: const TextStyle(color: Color(0xFF2C2C2C), fontSize: 14),
+                            '${city['city']}, ${city['country']}'.toUpperCase(),
+                            style: GoogleFonts.spaceMono(color: const Color(0xFFFAF7F2), fontSize: 14),
                           ),
                         ),
                       ),
@@ -2025,7 +2333,7 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0EBE3),
+                    color: Colors.white.withOpacity(0.09),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -2034,10 +2342,10 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Search for "$query"',
-                          style: const TextStyle(
+                          'Search for "$query"'.toUpperCase(),
+                          style: GoogleFonts.spaceMono(
                             fontSize: 14,
-                            color: Color(0xFF2C2C2C),
+                            color: const Color(0xFFFAF7F2),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -2049,6 +2357,7 @@ class _CitySearchDialogState extends State<CitySearchDialog> {
             ],
           ],
         ),
+      ),
       ),
     );
   }
@@ -2086,11 +2395,7 @@ class _QiblaButtonState extends State<_QiblaButton> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF9CAF88), Color(0xFF8A9E76)],
-            ),
+            color: Color(0xFF1E2A1E).withOpacity(0.92),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2113,23 +2418,23 @@ class _QiblaButtonState extends State<_QiblaButton> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Qibla',
-                      style: TextStyle(
+                    Text(
+                      'Qibla'.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFFAF7F2),
+                        color: const Color(0xFFFAF7F2),
                         letterSpacing: -0.1,
                       ),
                     ),
                     const SizedBox(height: 1),
-                    const Text(
-                      'Find your direction',
+                    Text(
+                      'Find direction'.toUpperCase(),
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: GoogleFonts.spaceMono(
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
-                        color: Color(0xCCFAF7F2),
+                        color: const Color(0xCCFAF7F2),
                       ),
                     ),
                   ],
@@ -2175,11 +2480,7 @@ class _DhikrButtonState extends State<_DhikrButton> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF9CAF88), Color(0xFF8A9E76)],
-            ),
+            color: Color(0xFF1E2A1E).withOpacity(0.92),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2202,23 +2503,23 @@ class _DhikrButtonState extends State<_DhikrButton> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Dhikr',
-                      style: TextStyle(
+                    Text(
+                      'Dhikr'.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFFAF7F2),
+                        color: const Color(0xFFFAF7F2),
                         letterSpacing: -0.1,
                       ),
                     ),
                     const SizedBox(height: 1),
-                    const Text(
-                      'Count your remembrance',
+                    Text(
+                      'Count remembrance'.toUpperCase(),
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: GoogleFonts.spaceMono(
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
-                        color: Color(0xCCFAF7F2),
+                        color: const Color(0xCCFAF7F2),
                       ),
                     ),
                   ],
@@ -2367,12 +2668,12 @@ class _QiblaScreenState extends State<QiblaScreen> {
             child: Column(
               children: [
                 _buildTopBar(),
-                const Expanded(
+                Expanded(
                   child: Center(
                     child: Text(
-                      'Compass unavailable on this device',
+                      'Compass unavailable on this device'.toUpperCase(),
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: _cream, fontSize: 16),
+                      style: GoogleFonts.spaceMono(color: _cream, fontSize: 16),
                     ),
                   ),
                 ),
@@ -2433,8 +2734,8 @@ class _QiblaScreenState extends State<QiblaScreen> {
                       child: Align(
                         alignment: const Alignment(0, -0.76),
                         child: Text(
-                          '🕋',
-                          style: const TextStyle(fontSize: 26),
+                          '🕋'.toUpperCase(),
+                          style: GoogleFonts.spaceMono(fontSize: 26),
                         ),
                       ),
                     ),
@@ -2459,8 +2760,8 @@ class _QiblaScreenState extends State<QiblaScreen> {
             const SizedBox(height: 36),
             // Line 1: live heading
             Text(
-              '${displayHeading.round()}° ${_dirLabel(displayHeading)}',
-              style: const TextStyle(
+              '${displayHeading.round()}° ${_dirLabel(displayHeading)}'.toUpperCase(),
+              style: GoogleFonts.spaceMono(
                 fontSize: 26,
                 fontWeight: FontWeight.w600,
                 color: _limestone,
@@ -2470,19 +2771,19 @@ class _QiblaScreenState extends State<QiblaScreen> {
             const SizedBox(height: 6),
             // Line 2: Qibla bearing (fixed)
             Text(
-              _qiblaBearing != null
+              (_qiblaBearing != null
                   ? 'Qibla: ${_qiblaBearing!.round()}° ${_dirLabel(_qiblaBearing!)}'
-                  : 'Locating…',
-              style: const TextStyle(
+                  : 'Locating…').toUpperCase(),
+              style: GoogleFonts.spaceMono(
                 fontSize: 15,
                 color: _cream,
                 fontWeight: FontWeight.w400,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Rotate until the Kaaba aligns with the top',
-              style: TextStyle(
+            Text(
+              'Rotate until the Kaaba aligns with the top'.toUpperCase(),
+              style: GoogleFonts.spaceMono(
                 fontSize: 13,
                 color: _cream,
                 fontWeight: FontWeight.w300,
@@ -2516,9 +2817,9 @@ class _QiblaScreenState extends State<QiblaScreen> {
                   color: _limestone, size: 24),
             ),
           ),
-          const Text(
-            'Qibla',
-            style: TextStyle(
+          Text(
+            'Qibla'.toUpperCase(),
+            style: GoogleFonts.spaceMono(
               fontSize: 18,
               fontWeight: FontWeight.w600,
               color: _limestone,
@@ -2549,8 +2850,8 @@ class _QiblaScreenState extends State<QiblaScreen> {
         left: x,
         top: y,
         child: Text(
-          label,
-          style: TextStyle(
+          label.toUpperCase(),
+          style: GoogleFonts.spaceMono(
             fontSize: isN ? 14 : 10,
             fontWeight: isN ? FontWeight.w700 : FontWeight.w500,
             color: isN ? _limestone : _limestone.withValues(alpha: 0.5),
@@ -2673,8 +2974,10 @@ class DhikrScreen extends StatefulWidget {
 
 class _DhikrScreenState extends State<DhikrScreen> {
   int _count = 0;
-  bool _glowing = false;
   bool _showResetHint = false;
+  bool _showMilestoneText = false;
+  bool _showMilestoneGlow = false;
+  String _milestoneText = '';
   static const _maxCount = 999999;
   static const _prefKey = 'dhikr_count';
 
@@ -2701,12 +3004,7 @@ class _DhikrScreenState extends State<DhikrScreen> {
     _save(next);
 
     if (next % 33 == 0) {
-      await HapticFeedback.heavyImpact();
-      await Future.delayed(const Duration(milliseconds: 100));
-      await HapticFeedback.heavyImpact();
-      await Future.delayed(const Duration(milliseconds: 100));
-      await HapticFeedback.heavyImpact();
-      _triggerGlow();
+      _triggerMilestoneAnimation();
     } else if (next % 100 == 0) {
       await HapticFeedback.heavyImpact();
       await Future.delayed(const Duration(milliseconds: 150));
@@ -2716,11 +3014,154 @@ class _DhikrScreenState extends State<DhikrScreen> {
     }
   }
 
-  void _triggerGlow() {
-    setState(() => _glowing = true);
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() => _glowing = false);
+  String _getMilestoneText(int count) {
+    final milestone = count % 99;
+    if (milestone == 33) return 'سُبْحَانَ اللَّه';
+    if (milestone == 66) return 'الْحَمْدُ لِلَّه';
+    if (milestone == 0 && count > 0) return 'اللَّهُ أَكْبَر';
+    return 'سُبْحَانَ اللَّه';
+  }
+
+  Future<void> _triggerMilestoneAnimation() async {
+    final text = _getMilestoneText(_count);
+    setState(() {
+      _milestoneText = text;
+      _showMilestoneText = true;
+      _showMilestoneGlow = true;
     });
+    await HapticFeedback.heavyImpact();
+    await Future.delayed(const Duration(milliseconds: 100));
+    await HapticFeedback.heavyImpact();
+    await Future.delayed(const Duration(milliseconds: 100));
+    await HapticFeedback.heavyImpact();
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) setState(() => _showMilestoneGlow = false);
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (mounted) setState(() => _showMilestoneText = false);
+  }
+
+  void _showDhikrInfoSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E2A1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 16, bottom: 8),
+                  width: 36,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Text(
+                    'WAYS TO MAKE DHIKR',
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFFAF7F2),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+                Container(height: 0.5, color: Colors.white.withOpacity(0.1)),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      _buildDhikrCard('سُبْحَانَ اللَّه', 'SubhanAllah', 'Glory be to Allah'),
+                      _buildDhikrCard('الْحَمْدُ لِلَّه', 'Alhamdulillah', 'All praise be to Allah'),
+                      _buildDhikrCard('اللَّهُ أَكْبَر', 'Allahu Akbar', 'Allah is the Greatest'),
+                      _buildDhikrCard('لَا إِلَٰهَ إِلَّا اللَّه', 'La ilaha illallah', 'There is no god but Allah'),
+                      _buildDhikrCard('أَسْتَغْفِرُ اللَّه', 'Astaghfirullah', 'I seek forgiveness from Allah'),
+                      _buildDhikrCard('سُبْحَانَ اللَّهِ وَبِحَمْدِهِ', 'SubhanAllahi wa bihamdih', 'Glory and praise be to Allah'),
+                      _buildDhikrCard('حَسْبِيَ اللَّهُ', 'HasbiyAllah', 'Allah is sufficient for me'),
+                      _buildDhikrCard('لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّه', 'La hawla wala quwwata illa billah', 'No power except with Allah'),
+                      _buildDhikrCard('صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ', 'Sallallahu alayhi wasallam', 'Peace and blessings upon the Prophet'),
+                      _buildDhikrCard('بِسْمِ اللَّه', 'Bismillah', 'In the name of Allah'),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDhikrCard(String arabic, String transliteration, String meaning) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.white.withOpacity(0.06),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            arabic,
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 26,
+              color: Color(0xFFFAF7F2),
+              fontWeight: FontWeight.w300,
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(height: 0.5, color: Colors.white.withOpacity(0.1)),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              transliteration.toUpperCase(),
+              style: GoogleFonts.spaceMono(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF8AAF82),
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              meaning.toUpperCase(),
+              style: GoogleFonts.spaceMono(
+                fontSize: 10,
+                color: Color(0xFFFAF7F2).withOpacity(0.5),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onResetTap() {
@@ -2741,18 +3182,25 @@ class _DhikrScreenState extends State<DhikrScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF5C6B54),
-              Color(0xFF7D8B6F),
-              Color(0xFF6B7A62),
-              Color(0xFF4A5C42),
+            colors: _showMilestoneGlow ? [
+              const Color(0xFF4A6B4A),
+              const Color(0xFF6B8A65),
+              const Color(0xFF9ABF92),
+              const Color(0xFFCADFC4),
+            ] : [
+              const Color(0xFF3D4F3D),
+              const Color(0xFF5C7057),
+              const Color(0xFF8AAF82),
+              const Color(0xFFB8CEAF),
             ],
-            stops: [0.0, 0.35, 0.7, 1.0],
+            stops: const [0.0, 0.35, 0.65, 1.0],
           ),
         ),
         child: GestureDetector(
@@ -2764,26 +3212,63 @@ class _DhikrScreenState extends State<DhikrScreen> {
               // ── App bar ──
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Stack(
-                  alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                            color: Color(0xFFFAF7F2), size: 20),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Color(0xFFFAF7F2), size: 20),
                     ),
-                    const Text(
-                      'Dhikr',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFFAF7F2),
-                        letterSpacing: -0.3,
-                      ),
+                    Column(
+                      children: [
+                        Text(
+                          'DHIKR',
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFFAF7F2),
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            _showDhikrInfoSheet(context);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color: Colors.white.withOpacity(0.08),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.15),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.info_outline,
+                                    color: const Color(0xFFFAF7F2).withOpacity(0.6),
+                                    size: 12),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'DHIKR GUIDE',
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 9,
+                                    color: const Color(0xFFFAF7F2).withOpacity(0.6),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(width: 20),
                   ],
                 ),
               ),
@@ -2792,30 +3277,31 @@ class _DhikrScreenState extends State<DhikrScreen> {
               Expanded(
                 child: Center(
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: _glowing
-                              ? [
-                                  BoxShadow(
-                                    color: const Color(0xFFD4A854).withValues(alpha: 0.55),
-                                    blurRadius: 70,
-                                    spreadRadius: 14,
-                                  )
-                                ]
-                              : [],
+                      const SizedBox(height: 60),
+                      AnimatedOpacity(
+                        opacity: _showMilestoneText ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 400),
+                        child: Text(
+                          _milestoneText,
+                          style: const TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 32,
+                            color: Color(0xFFFAF7F2),
+                            fontWeight: FontWeight.w300,
+                          ),
+                          textAlign: TextAlign.center,
+                          textDirection: TextDirection.rtl,
                         ),
-                        child: _TallyDisplay(count: _count),
                       ),
+                      const SizedBox(height: 24),
+                      _TallyDisplay(count: _count),
                       const SizedBox(height: 16),
                       Text(
-                        'Tap anywhere to count',
-                        style: TextStyle(
+                        'Tap anywhere to count'.toUpperCase(),
+                        style: GoogleFonts.spaceMono(
                           fontSize: 13,
                           color: const Color(0xFFFAF7F2).withValues(alpha: 0.5),
                           letterSpacing: 0.1,
@@ -2835,8 +3321,8 @@ class _DhikrScreenState extends State<DhikrScreen> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
-                          'Hold to reset',
-                          style: TextStyle(
+                          'Hold to reset'.toUpperCase(),
+                          style: GoogleFonts.spaceMono(
                             fontSize: 12,
                             color: const Color(0xFFFAF7F2).withValues(alpha: 0.6),
                           ),
@@ -2854,12 +3340,12 @@ class _DhikrScreenState extends State<DhikrScreen> {
                           ),
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        child: const Text(
-                          'Reset',
-                          style: TextStyle(
+                        child: Text(
+                          'Reset'.toUpperCase(),
+                          style: GoogleFonts.spaceMono(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFFE8E3DC),
+                            color: const Color(0xFFE8E3DC),
                             letterSpacing: 0.2,
                           ),
                         ),
@@ -2949,7 +3435,7 @@ class _FlipDigitState extends State<_FlipDigit>
   int _animPrev = 0;
   int _animCurrent = 0;
 
-  static const _textStyle = TextStyle(
+  TextStyle get _textStyle => GoogleFonts.spaceMono(
     fontSize: 36,
     fontWeight: FontWeight.w700,
     color: Colors.white,
@@ -2984,7 +3470,7 @@ class _FlipDigitState extends State<_FlipDigit>
   Widget _half(int d) => SizedBox(
         width: 44,
         height: 60,
-        child: Center(child: Text('$d', style: _textStyle)),
+        child: Center(child: Text('$d'.toUpperCase(), style: _textStyle)),
       );
 
   @override
@@ -3011,7 +3497,7 @@ class _FlipDigitState extends State<_FlipDigit>
                 width: 44,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: Colors.black,
+                  color: const Color(0xFF1E2A1E),
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
