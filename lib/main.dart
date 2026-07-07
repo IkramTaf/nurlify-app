@@ -56,8 +56,181 @@ class PrayerStorage {
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
+final _appReadyCompleter = Completer<void>();
+
 void main() {
   runApp(const NurlifyApp());
+}
+
+// ─── Splash ───────────────────────────────────────────────────────────────────
+
+class NurlifyStarPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFFAF7F2)
+      ..style = PaintingStyle.fill;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final arm = size.width * 0.46;
+    final width = size.width * 0.1;
+
+    final vertical = Path()
+      ..moveTo(cx, cy - arm)
+      ..lineTo(cx + width, cy)
+      ..lineTo(cx, cy + arm)
+      ..lineTo(cx - width, cy)
+      ..close();
+    canvas.drawPath(vertical, paint);
+
+    final horizontal = Path()
+      ..moveTo(cx - arm, cy)
+      ..lineTo(cx, cy - width)
+      ..lineTo(cx + arm, cy)
+      ..lineTo(cx, cy + width)
+      ..close();
+    canvas.drawPath(horizontal, paint);
+
+    canvas.drawCircle(Offset(cx, cy), size.width * 0.04, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class SplashScreen extends StatefulWidget {
+  final Widget child;
+  const SplashScreen({required this.child, super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeIn;
+  late Animation<double> _scaleIn;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _scaleIn = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _controller.forward();
+
+    Future.wait([
+      _appReadyCompleter.future,
+      Future.delayed(const Duration(milliseconds: 1500)),
+    ]).then((_) {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                widget.child,
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 800),
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF5C7A5C),
+              Color(0xFF7A9E7E),
+              Color(0xFFA8C490),
+              Color(0xFFD4DDB8),
+              Color(0xFFE8DFC0),
+            ],
+            stops: [0.0, 0.35, 0.65, 0.85, 1.0],
+          ),
+        ),
+        child: FadeTransition(
+          opacity: _fadeIn,
+          child: ScaleTransition(
+            scale: _scaleIn,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(110, 110),
+                  painter: NurlifyStarPainter(),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'NURLIFY',
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFFAF7F2),
+                    letterSpacing: 6,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildDot(0),
+                    const SizedBox(width: 6),
+                    _buildDot(200),
+                    const SizedBox(width: 6),
+                    _buildDot(400),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDot(int delayMs) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.3, end: 1.0),
+      duration: Duration(milliseconds: 600 + delayMs),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFFAF7F2).withOpacity(value),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class NurlifyApp extends StatelessWidget {
@@ -92,7 +265,7 @@ class NurlifyApp extends StatelessWidget {
           bodyMedium: GoogleFonts.spaceMono(fontSize: 14, color: const Color(0xFFFAF7F2).withOpacity(0.55)),
         ),
       ),
-      home: const MainShell(),
+      home: const SplashScreen(child: MainShell()),
     );
   }
 }
@@ -450,6 +623,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     _fadeController.forward(from: 0);
     _loadTodayCompletions();
     _rescheduleAllNotifications();
+    if (!_appReadyCompleter.isCompleted) _appReadyCompleter.complete();
   }
 
   DateTime _cityNow() {
@@ -661,6 +835,28 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     return ids[prayer] ?? 0;
   }
 
+  String _formatPrayerName(String prayer) {
+    if (prayer.isEmpty) return prayer;
+    return prayer[0].toUpperCase() + prayer.substring(1).toLowerCase();
+  }
+
+  String _getPrayerNotificationBody(String prayer) {
+    switch (prayer.toLowerCase()) {
+      case 'fajr':
+        return 'Prayer is better than sleep.';
+      case 'dhuhr':
+        return 'In His remembrance do hearts find rest.';
+      case 'asr':
+        return 'By time, let it find you in sujood.';
+      case 'maghrib':
+        return 'Glorify Allah as the sun sets.';
+      case 'isha':
+        return 'Seal the day with His remembrance.';
+      default:
+        return 'A moment to reconnect.';
+    }
+  }
+
   Future<void> _rescheduleNotification(String prayer) async {
     final mode = _notificationSettings[prayer] ?? NotificationMode.adhan;
     if (mode == NotificationMode.silent) {
@@ -689,8 +885,8 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
       );
       await flutterLocalNotificationsPlugin.zonedSchedule(
         _prayerNotifId(prayer),
-        "IT'S TIME FOR ${prayer.toUpperCase()}",
-        'A MOMENT TO RECONNECT',
+        "It's time for ${_formatPrayerName(prayer)}",
+        _getPrayerNotificationBody(prayer),
         scheduled,
         NotificationDetails(android: androidDetails),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
