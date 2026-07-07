@@ -1,8 +1,10 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(512,512)">
-    <polygon points="0,-328 72,0 0,328 -72,0" fill="#FAF7F2"/>
-    <polygon points="-328,0 0,-72 328,0 0,72" fill="#FAF7F2"/>
-    <circle cx="0" cy="0" r="52" fill="rgba(255,255,255,0.45)"/>
-    <circle cx="0" cy="0" r="26" fill="#FAF7F2"/>
-  </g>
+  <path d="
+    M 512 88
+    C 528 370, 638 428, 936 512
+    C 638 596, 528 654, 512 936
+    C 496 654, 386 596, 88 512
+    C 386 428, 496 370, 512 88
+    Z
+  " fill="#FAF7F2"/>
 </svg>

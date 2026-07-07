@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- Vertical diamond -->
+    <path
+        android:fillColor="#FAF7F2"
+        android:pathData="M60,5 L66,60 L60,115 L54,60 Z"/>
+    <!-- Horizontal diamond -->
+    <path
+        android:fillColor="#FAF7F2"
+        android:pathData="M5,60 L60,54 L115,60 L60,66 Z"/>
+</vector>

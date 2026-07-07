@@ -10,7 +10,9 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:permission_handler/permission_handler.dart';
 
 // ─── Prayer Storage ───────────────────────────────────────────────────────────
 
@@ -56,182 +58,21 @@ class PrayerStorage {
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-final _appReadyCompleter = Completer<void>();
-
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  tz_data.initializeTimeZones();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
   runApp(const NurlifyApp());
 }
 
 // ─── Splash ───────────────────────────────────────────────────────────────────
-
-class NurlifyStarPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFFAF7F2)
-      ..style = PaintingStyle.fill;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final arm = size.width * 0.46;
-    final width = size.width * 0.1;
-
-    final vertical = Path()
-      ..moveTo(cx, cy - arm)
-      ..lineTo(cx + width, cy)
-      ..lineTo(cx, cy + arm)
-      ..lineTo(cx - width, cy)
-      ..close();
-    canvas.drawPath(vertical, paint);
-
-    final horizontal = Path()
-      ..moveTo(cx - arm, cy)
-      ..lineTo(cx, cy - width)
-      ..lineTo(cx + arm, cy)
-      ..lineTo(cx, cy + width)
-      ..close();
-    canvas.drawPath(horizontal, paint);
-
-    canvas.drawCircle(Offset(cx, cy), size.width * 0.04, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class SplashScreen extends StatefulWidget {
-  final Widget child;
-  const SplashScreen({required this.child, super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeIn;
-  late Animation<double> _scaleIn;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _scaleIn = Tween<double>(begin: 0.88, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _controller.forward();
-
-    Future.wait([
-      _appReadyCompleter.future,
-      Future.delayed(const Duration(milliseconds: 1500)),
-    ]).then((_) {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                widget.child,
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            transitionDuration: const Duration(milliseconds: 800),
-          ),
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF5C7A5C),
-              Color(0xFF7A9E7E),
-              Color(0xFFA8C490),
-              Color(0xFFD4DDB8),
-              Color(0xFFE8DFC0),
-            ],
-            stops: [0.0, 0.35, 0.65, 0.85, 1.0],
-          ),
-        ),
-        child: FadeTransition(
-          opacity: _fadeIn,
-          child: ScaleTransition(
-            scale: _scaleIn,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CustomPaint(
-                  size: const Size(110, 110),
-                  painter: NurlifyStarPainter(),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'NURLIFY',
-                  style: GoogleFonts.spaceMono(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFFAF7F2),
-                    letterSpacing: 6,
-                  ),
-                ),
-                const SizedBox(height: 48),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildDot(0),
-                    const SizedBox(width: 6),
-                    _buildDot(200),
-                    const SizedBox(width: 6),
-                    _buildDot(400),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDot(int delayMs) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.3, end: 1.0),
-      duration: Duration(milliseconds: 600 + delayMs),
-      curve: Curves.easeInOut,
-      builder: (context, value, child) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 600),
-          width: 5,
-          height: 5,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFFFAF7F2).withOpacity(value),
-          ),
-        );
-      },
-    );
-  }
-}
 
 class NurlifyApp extends StatelessWidget {
   const NurlifyApp({super.key});
@@ -265,7 +106,7 @@ class NurlifyApp extends StatelessWidget {
           bodyMedium: GoogleFonts.spaceMono(fontSize: 14, color: const Color(0xFFFAF7F2).withOpacity(0.55)),
         ),
       ),
-      home: const SplashScreen(child: MainShell()),
+      home: const MainShell(),
     );
   }
 }
@@ -286,6 +127,8 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBody: true,
+      extendBodyBehindAppBar: true,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -312,9 +155,15 @@ class _MainShellState extends State<MainShell> {
           ],
         ),
       ),
-      bottomNavigationBar: _BottomNav(
-        selected: _tab,
-        onSelect: (i) => setState(() => _tab = i),
+      bottomNavigationBar: Container(
+        color: const Color(0xFF1E2A1E),
+        child: SafeArea(
+          top: false,
+          child: _BottomNav(
+            selected: _tab,
+            onSelect: (i) => setState(() => _tab = i),
+          ),
+        ),
       ),
     );
   }
@@ -444,6 +293,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   Map<String, bool> _completed = {};
   bool _loading = true;
   String? _error;
+  String? _notifDebug;
   String? _city;
   String? _country;
   String? _hijriDate;
@@ -475,7 +325,6 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   @override
   void initState() {
     super.initState();
-    tz_data.initializeTimeZones();
     WidgetsBinding.instance.addObserver(this);
     _fadeController = AnimationController(
       vsync: this,
@@ -484,19 +333,87 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
-    _initNotifications();
-    _fetchLocationAndPrayerTimes();
+    _initNotifications().then((_) => _initApp());
   }
 
   Future<void> _initNotifications() async {
-    const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initSettings =
-        InitializationSettings(android: androidSettings);
-    await flutterLocalNotificationsPlugin.initialize(initSettings);
-    for (final prayer in _obligatory) {
-      final mode = await _loadNotificationSetting(prayer);
-      if (mounted) setState(() => _notificationSettings[prayer] = mode);
+    try {
+      await flutterLocalNotificationsPlugin.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@android:drawable/ic_dialog_info'),
+        ),
+        onDidReceiveNotificationResponse: (details) {},
+      );
+
+      final androidPlugin = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+      await androidPlugin?.requestNotificationsPermission();
+      await androidPlugin?.requestExactAlarmsPermission();
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'prayer_channel',
+          'Prayer Notifications',
+          description: 'Prayer time reminders',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
+        ),
+      );
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'adhan_channel',
+          'Adhan',
+          description: 'Adhan call to prayer',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
+          sound: RawResourceAndroidNotificationSound('adhan'),
+        ),
+      );
+
+      for (final prayer in _obligatory) {
+        final mode = await _loadNotificationSetting(prayer);
+        if (mounted) setState(() => _notificationSettings[prayer] = mode);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _notifDebug = 'Init error: $e');
+    }
+  }
+
+  Future<void> _initApp() async {
+    await _loadCachedThenFetch();
+  }
+
+  Future<void> _loadCachedThenFetch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedCity = prefs.getString('cached_city');
+    final cachedTimingsJson = prefs.getString('cached_timings');
+    final cachedDate = prefs.getString('cached_date');
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    if (cachedCity != null && cachedTimingsJson != null && cachedDate == today) {
+      final timings = (json.decode(cachedTimingsJson) as Map).cast<String, String>();
+      if (mounted) {
+        setState(() {
+          _prayerTimes = timings;
+          _city = cachedCity;
+          _country = prefs.getString('cached_country') ?? '';
+          _hijriDate = prefs.getString('cached_hijri');
+          _currentTimezone = prefs.getString('cached_timezone') ?? 'UTC';
+          _lastLat = prefs.getDouble('cached_lat');
+          _lastLng = prefs.getDouble('cached_lng');
+          _loading = false;
+          _error = null;
+        });
+      }
+      _loadTodayCompletions();
+      _fetchLocationAndPrayerTimes(silent: true);
+    } else {
+      _fetchLocationAndPrayerTimes();
     }
   }
 
@@ -518,7 +435,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
 
   // ── fetch ─────────────────────────────────────────────────────────────────
 
-  Future<void> _fetchLocationAndPrayerTimes() async {
+  Future<void> _fetchLocationAndPrayerTimes({bool silent = false}) async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -530,30 +447,30 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
           Position? position = await Geolocator.getLastKnownPosition();
           position ??= await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.low,
-            timeLimit: const Duration(seconds: 20),
+            timeLimit: const Duration(seconds: 5),
           );
-          await _fetchByCoords(position.latitude, position.longitude);
+          await _fetchByCoords(position.latitude, position.longitude, silent: silent);
           return;
         } catch (_) {}
       }
-      _showCityPrompt();
+      if (!silent) _showCityPrompt();
     } catch (_) {
-      _showCityPrompt();
+      if (!silent) _showCityPrompt();
     }
   }
 
-  Future<void> _fetchByCoords(double lat, double lng) async {
+  Future<void> _fetchByCoords(double lat, double lng, {int attempt = 1, bool silent = false}) async {
     try {
       final responses = await Future.wait([
         http.get(Uri.parse(
           'https://api.aladhan.com/v1/timings?latitude=$lat&longitude=$lng&method=2',
-        )),
+        )).timeout(const Duration(seconds: 10)),
         http.get(
           Uri.parse(
             'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng',
           ),
           headers: {'User-Agent': 'Nurlify/1.0'},
-        ),
+        ).timeout(const Duration(seconds: 10)),
       ]);
 
       _lastLat = lat;
@@ -577,24 +494,40 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
         }
         _parseResponse(data, city, country);
       } else {
-        _setError('Could not load prayer times.');
+        if (attempt < 2) {
+          await Future.delayed(const Duration(seconds: 2));
+          return _fetchByCoords(lat, lng, attempt: attempt + 1, silent: silent);
+        }
+        if (!silent) _setError('Could not load prayer times.');
       }
     } catch (_) {
-      _setError('Something went wrong. Pull to refresh.');
+      if (attempt < 2) {
+        await Future.delayed(const Duration(seconds: 2));
+        return _fetchByCoords(lat, lng, attempt: attempt + 1, silent: silent);
+      }
+      if (!silent) _setError('Something went wrong. Pull to refresh.');
     }
   }
 
-  Future<void> _fetchByCity(String city, String country) async {
+  Future<void> _fetchByCity(String city, String country, {int attempt = 1}) async {
     try {
       final response = await http.get(Uri.parse(
         'https://api.aladhan.com/v1/timingsByCity?city=${Uri.encodeComponent(city)}&country=${Uri.encodeComponent(country)}&method=2',
-      ));
+      )).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         _parseResponse(json.decode(response.body), city, country);
       } else {
+        if (attempt < 2) {
+          await Future.delayed(const Duration(seconds: 2));
+          return _fetchByCity(city, country, attempt: attempt + 1);
+        }
         _setError('City not found. Try again.');
       }
     } catch (_) {
+      if (attempt < 2) {
+        await Future.delayed(const Duration(seconds: 2));
+        return _fetchByCity(city, country, attempt: attempt + 1);
+      }
       _setError('Something went wrong. Pull to refresh.');
     }
   }
@@ -623,7 +556,18 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     _fadeController.forward(from: 0);
     _loadTodayCompletions();
     _rescheduleAllNotifications();
-    if (!_appReadyCompleter.isCompleted) _appReadyCompleter.complete();
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('cached_city', city);
+      prefs.setString('cached_country', country);
+      prefs.setString('cached_hijri', '$hijriDay $hijriMonth $hijriYear AH');
+      prefs.setString('cached_timezone', timezone);
+      prefs.setString('cached_timings', json.encode({
+        for (final p in _prayerNames) p: timings[p] as String,
+      }));
+      prefs.setString('cached_date', DateTime.now().toIso8601String().substring(0, 10));
+      if (_lastLat != null) prefs.setDouble('cached_lat', _lastLat!);
+      if (_lastLng != null) prefs.setDouble('cached_lng', _lastLng!);
+    });
   }
 
   DateTime _cityNow() {
@@ -824,8 +768,8 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     if (t == null) return null;
     final parts = t.split(':');
     if (parts.length < 2) return null;
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
+    final hour = int.tryParse(parts[0].trim());
+    final minute = int.tryParse(parts[1].trim().split(' ')[0]);
     if (hour == null || minute == null) return null;
     return (hour: hour, minute: minute);
   }
@@ -833,6 +777,35 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   int _prayerNotifId(String prayer) {
     const ids = {'Fajr': 1, 'Dhuhr': 2, 'Asr': 3, 'Maghrib': 4, 'Isha': 5};
     return ids[prayer] ?? 0;
+  }
+
+  Future<void> _sendTestNotification() async {
+    try {
+      final location = tz.getLocation(_currentTimezone);
+      final scheduled = tz.TZDateTime.now(location).add(const Duration(minutes: 1));
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        99,
+        "Test — It's time for Maghrib",
+        'Glorify Allah as the sun sets.',
+        scheduled,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'prayer_channel',
+            'Prayer Notifications',
+            channelDescription: 'Nurlify prayer notifications',
+            importance: Importance.max,
+            priority: Priority.high,
+            enableVibration: true,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+      if (mounted) setState(() => _notifDebug = 'Scheduled in 1 min — lock phone & wait');
+    } catch (e) {
+      if (mounted) setState(() => _notifDebug = 'Schedule error: $e');
+    }
   }
 
   String _formatPrayerName(String prayer) {
@@ -857,14 +830,14 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     }
   }
 
-  Future<void> _rescheduleNotification(String prayer) async {
+  Future<String?> _rescheduleNotification(String prayer) async {
     final mode = _notificationSettings[prayer] ?? NotificationMode.adhan;
     if (mode == NotificationMode.silent) {
       await flutterLocalNotificationsPlugin.cancel(_prayerNotifId(prayer));
-      return;
+      return null;
     }
     final time = _getPrayerTime(prayer);
-    if (time == null) return;
+    if (time == null) return '$prayer: time not available';
     try {
       final location = tz.getLocation(_currentTimezone);
       final now = tz.TZDateTime.now(location);
@@ -894,12 +867,20 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
-    } catch (_) {}
+      return null;
+    } catch (e) {
+      return '$prayer: $e';
+    }
   }
 
   Future<void> _rescheduleAllNotifications() async {
+    final errors = <String>[];
     for (final prayer in _obligatory) {
-      await _rescheduleNotification(prayer);
+      final err = await _rescheduleNotification(prayer);
+      if (err != null) errors.add(err);
+    }
+    if (mounted && errors.isNotEmpty) {
+      setState(() => _notifDebug = 'Alarm error: ${errors.first}');
     }
   }
 
@@ -908,6 +889,17 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     final h = minutes ~/ 60;
     final m = minutes % 60;
     return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  String _formatTime(String raw) {
+    final parts = raw.split(':');
+    if (parts.length < 2) return raw;
+    final h = int.tryParse(parts[0]);
+    if (h == null) return raw;
+    final m = parts[1].padLeft(2, '0');
+    final period = h < 12 ? 'AM' : 'PM';
+    final hour = h % 12 == 0 ? 12 : h % 12;
+    return '$hour:$m $period';
   }
 
   String _formatCurrentTime() {
@@ -1403,7 +1395,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
   Widget _buildCard(String prayer) {
     final times = _isViewingYesterday ? _yesterdayPrayerTimes : _prayerTimes;
     final comp = _isViewingYesterday ? _yesterdayCompleted : _completed;
-    final time = times[prayer] ?? '--:--';
+    final time = _formatTime(times[prayer] ?? '--:--');
     final isCompleted = comp[prayer] ?? false;
     final isSunrise = prayer == 'Sunrise';
     final active = _isViewingYesterday ? null : _activePrayer();
