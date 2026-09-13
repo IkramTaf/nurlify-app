@@ -385,7 +385,21 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
     }
   }
 
+  Future<void> _requestCriticalPermissions() async {
+    if (Platform.isAndroid) {
+      final androidPlugin = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.requestExactAlarmsPermission();
+
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (!status.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    }
+  }
+
   Future<void> _initApp() async {
+    await _requestCriticalPermissions();
     await _loadCachedThenFetch();
   }
 
